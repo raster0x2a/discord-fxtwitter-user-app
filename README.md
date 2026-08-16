@@ -3,7 +3,7 @@
 Discordの**ユーザーインストール型アプリ**です。
 
 対象メッセージのコンテキストメニューから `FXTwitterに変換` を実行すると、本文中の
-`https://x.com` / `https://www.x.com` を `https://fxtwitter.com` に置換し、**実行した本人だけに見える ephemeral 応答**として返します。
+`https://x.com` / `https://www.x.com` を `https://fxtwitter.com` に置換し、**実行した本人だけに見える ephemeral 応答**として返します。  
 これにより、XのWebサイトやアプリを開かなくても埋め込み動画をDiscord上で再生できます。
 
 例:
