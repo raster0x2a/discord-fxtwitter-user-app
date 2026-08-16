@@ -1,0 +1,16 @@
+{
+  "name": "discord-fxtwitter-user-app",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "register": "node register.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord-interactions": "^4.4.0",
+    "dotenv": "^16.4.7"
+  }
+}
