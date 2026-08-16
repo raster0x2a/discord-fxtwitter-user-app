@@ -1,7 +1,1 @@
-{
-  "functions": {
-    "api/interactions.js": {
-      "maxDuration": 10
-    }
-  }
-}
+{}

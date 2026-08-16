@@ -2,6 +2,20 @@ import { verifyKey } from 'discord-interactions';
 
 const COMMAND_NAME = 'FXTwitterに変換';
 
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+}
+
+function text(message, status = 200) {
+  return new Response(message, {
+    status,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+}
+
 function ephemeral(content) {
   return {
     type: 4,
@@ -13,16 +27,16 @@ function ephemeral(content) {
   };
 }
 
-export function convertXLinks(text) {
-  if (typeof text !== 'string' || text.length === 0) return text ?? '';
-  return text.replace(
+export function convertXLinks(value) {
+  if (typeof value !== 'string' || value.length === 0) return value ?? '';
+  return value.replace(
     /https:\/\/(?:www\.)?x\.com(?=[:/?#\s]|$)/gi,
     'https://fxtwitter.com',
   );
 }
 
-function hasConvertibleXLink(text) {
-  return /https:\/\/(?:www\.)?x\.com(?=[:/?#\s]|$)/i.test(text);
+function hasConvertibleXLink(value) {
+  return /https:\/\/(?:www\.)?x\.com(?=[:/?#\s]|$)/i.test(value);
 }
 
 function fitDiscordMessage(original, converted) {
@@ -33,45 +47,46 @@ function fitDiscordMessage(original, converted) {
   return compact.slice(0, 1997) + '...';
 }
 
-async function readRawBody(req) {
-  const chunks = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
-  return Buffer.concat(chunks);
+export async function GET() {
+  return json({ ok: true, endpoint: 'discord-interactions' });
 }
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).send('Method Not Allowed');
+export async function POST(request) {
+  const publicKey = process.env.DISCORD_PUBLIC_KEY?.trim();
+  if (!publicKey) return text('DISCORD_PUBLIC_KEY is not configured', 500);
+
+  const signature = request.headers.get('x-signature-ed25519');
+  const timestamp = request.headers.get('x-signature-timestamp');
+  const rawBody = await request.text();
+
+  if (!signature || !timestamp) return text('invalid request', 401);
+
+  let valid = false;
+  try {
+    valid = await verifyKey(rawBody, signature, timestamp, publicKey);
+  } catch (error) {
+    console.error('Signature verification failed:', error);
+    return text('invalid request signature', 401);
   }
 
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
-  if (!publicKey) return res.status(500).send('DISCORD_PUBLIC_KEY is not configured');
-
-  const signature = req.headers['x-signature-ed25519'];
-  const timestamp = req.headers['x-signature-timestamp'];
-  const rawBody = await readRawBody(req);
-
-  if (!signature || !timestamp) return res.status(401).send('invalid request');
-
-  const valid = await verifyKey(rawBody, signature, timestamp, publicKey);
-  if (!valid) return res.status(401).send('invalid request signature');
+  if (!valid) return text('invalid request signature', 401);
 
   let interaction;
   try {
-    interaction = JSON.parse(rawBody.toString('utf8'));
+    interaction = JSON.parse(rawBody);
   } catch {
-    return res.status(400).send('invalid json');
+    return text('invalid json', 400);
   }
 
-  if (interaction.type === 1) return res.status(200).json({ type: 1 });
+  // Discord's endpoint validation PING.
+  if (interaction.type === 1) return json({ type: 1 });
 
   if (
     interaction.type !== 2 ||
     interaction.data?.type !== 3 ||
     interaction.data?.name !== COMMAND_NAME
   ) {
-    return res.status(200).json(ephemeral('未対応のコマンドです。'));
+    return json(ephemeral('未対応のコマンドです。'));
   }
 
   const targetId = interaction.data?.target_id;
@@ -79,11 +94,9 @@ export default async function handler(req, res) {
   const content = targetMessage?.content ?? '';
 
   if (!hasConvertibleXLink(content)) {
-    return res.status(200).json(
-      ephemeral('このメッセージには `https://x.com` のURLがありません。'),
-    );
+    return json(ephemeral('このメッセージには `https://x.com` のURLがありません。'));
   }
 
   const converted = fitDiscordMessage(content, convertXLinks(content));
-  return res.status(200).json(ephemeral(converted));
+  return json(ephemeral(converted));
 }
